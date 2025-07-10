@@ -87,8 +87,8 @@ anchor test --skip-build --skip-deploy
 ## 📬 Contact
 
 **For verification or opportunities:**  
-✉️ [conservedinnovation@gmail.com](mailto:your.email@example.com)  
-🐦 [@inspiration_gx](https://twitter.com/yourhandle)
+✉️ [conservedinnovation@gmail.com](mailto:conservedinnovation@gmail.com)  
+🐦 [@inspiration_gx](https://x.com/inspiration_gx)
 
 _"This submission represents my own work in accordance with academic integrity policies."_
 
