@@ -254,7 +254,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "anchor_vault"
+name = "anchor_escrow"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
