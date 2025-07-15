@@ -283,7 +283,7 @@ describe("Escrow", () => {
   describe("can get all the offers", () => {
     test("successfully gets all the offers", async () => {
       const getOffers = connection.getAccountsFactory(
-        programClient.ESCROW_PROGRAM_ADDRESS,
+        programClient.ANCHOR_ESCROW_PROGRAM_ADDRESS,
         OFFER_DISCRIMINATOR,
         getOfferDecoder()
       );
@@ -318,7 +318,7 @@ describe("Escrow", () => {
           "Offer 1 tokenMintB should match"
         );
         assert.equal(
-          offer1.data.tokenBWantedAmount,
+          offer1.data.amountTokenBWanted,
           tokenBWantedAmount.toString(),
           "Offer 1 tokenBWantedAmount should match"
         );
@@ -358,7 +358,7 @@ describe("Escrow", () => {
           "Offer 2 tokenMintB should match"
         );
         assert.equal(
-          offer2.data.tokenBWantedAmount,
+          offer2.data.amountTokenBWanted,
           tokenBWantedAmount.toString(),
           "Offer 2 tokenBWantedAmount should match"
         );
