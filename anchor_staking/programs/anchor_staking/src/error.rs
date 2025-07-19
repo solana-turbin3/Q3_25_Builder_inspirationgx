@@ -6,4 +6,6 @@ pub enum StakeProgramError {
     MaxStakeReached,
     #[msg("Confirm that you've staked enough to unstake")]
     InsufficientPreviousStakes,
+    #[msg("Required time to unfreeze has not passed")]
+    UnFreezeTimeNotSatisfied,
 }

@@ -4,11 +4,11 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     metadata::{
         mpl_token_metadata::instructions::{
-            FreezeDelegatedAccountCpi, FreezeDelegatedAccountCpiAccounts,
+            ThawDelegatedAccountCpi, ThawDelegatedAccountCpiAccounts,
         },
         MasterEditionAccount, Metadata, MetadataAccount,
     },
-    token_interface::{approve, Approve, Mint, TokenAccount, TokenInterface},
+    token_interface::{revoke, Mint, Revoke, TokenAccount, TokenInterface},
 };
 
 use crate::{error::StakeProgramError, GlobalState, StakeState, UserState};
@@ -20,8 +20,6 @@ pub struct UnStake<'info> {
 
     pub mint: InterfaceAccount<'info, Mint>,
 
-    pub collection_mint: InterfaceAccount<'info, Mint>,
-
     #[account(
         mut,
         associated_token::mint = mint,
@@ -29,19 +27,6 @@ pub struct UnStake<'info> {
         associated_token::authority = user
     )]
     pub user_mint_ata: InterfaceAccount<'info, TokenAccount>,
-
-    #[account{
-        seeds = [
-            b"metadata",
-            metadata_program.key().as_ref(),
-            mint.key().as_ref()
-        ],
-        seeds::program = metadata_program.key(),
-        bump,
-        constraint = metadata.collection.as_ref().unwrap().key.as_ref() == collection_mint.key().as_ref(),
-        constraint = metadata.collection.as_ref().unwrap().verified == true
-    }]
-    pub metadata: Account<'info, MetadataAccount>,
 
     #[account{
         seeds = [
@@ -69,11 +54,10 @@ pub struct UnStake<'info> {
     pub user_state: Account<'info, UserState>,
 
     #[account(
-        init_if_needed,
-        payer = user,
+        mut,
+        close = user,
         seeds = [b"stake", mint.key().as_ref(), global_state.key().as_ref()],
         bump,
-        space = StakeState::DISCRIMINATOR.len() + StakeState::INIT_SPACE
     )]
     pub stake_account: Account<'info, StakeState>,
 
@@ -89,6 +73,53 @@ impl<'info> UnStake<'info> {
             self.user_state.amount_staked >= 1,
             StakeProgramError::InsufficientPreviousStakes,
         );
+
+        let time_elapsed: u32 =
+            ((Clock::get()?.unix_timestamp - self.stake_account.staked_at) / 86400) as u32;
+
+        require!(
+            time_elapsed > self.global_state.freeze_period,
+            StakeProgramError::UnFreezeTimeNotSatisfied
+        );
+
+        self.user_state.points += (self.global_state.points_per_stake as u32) * time_elapsed;
+
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"stake",
+            self.mint.to_account_info().key().as_ref(),
+            self.global_state.to_account_info().key().as_ref(),
+            &[self.stake_account.bump],
+        ]];
+
+        // Unfreezing the delegated token
+
+        ThawDelegatedAccountCpi::new(
+            &self.metadata_program.to_account_info(),
+            ThawDelegatedAccountCpiAccounts {
+                delegate: &self.stake_account.to_account_info(),
+                token_account: &self.user_mint_ata.to_account_info(),
+                edition: &self.edition.to_account_info(),
+                mint: &self.mint.to_account_info(),
+                token_program: &self.token_program.to_account_info(),
+            },
+        )
+        .invoke_signed(signer_seeds)?;
+
+        let cpi_revoke_accounts = Revoke {
+            authority: self.user.to_account_info(),
+            source: self.user_mint_ata.to_account_info(),
+        };
+
+        // revoking the previous approve delegate
+
+        revoke(CpiContext::new(
+            self.token_program.to_account_info(),
+            cpi_revoke_accounts,
+        ))?;
+
+        if self.user_state.amount_staked > 0 {
+            self.user_state.amount_staked -= 1
+        };
 
         Ok(())
     }
