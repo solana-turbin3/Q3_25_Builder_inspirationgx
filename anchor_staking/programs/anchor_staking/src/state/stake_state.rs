@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 #[account]
 #[derive(InitSpace)]
-pub struct StakeAccount {
+pub struct StakeState {
     pub owner: Pubkey,
     pub mint: Pubkey,
     pub staked_at: i64,
