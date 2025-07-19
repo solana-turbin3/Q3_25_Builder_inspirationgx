@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token_interface::{Mint, TokenInterface};
 
 use crate::GlobalState;
 
@@ -16,14 +17,37 @@ pub struct InitializeGlobalState<'info> {
     )]
     pub global_state: Account<'info, GlobalState>,
 
-    pub reward_mint: Account<'info, Mint>,
+    #[account(
+        init_if_needed,
+        payer = admin,
+        seeds = [b"rewards", global_state.key().as_ref()],
+        bump,
+        mint::decimals = 6,
+        mint::authority = global_state
+
+    )]
+    pub reward_mint: InterfaceAccount<'info, Mint>,
 
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
-pub fn handler(ctx: Context<Initialize>) -> Result<()> {
-    msg!("Greetings from: {:?}", ctx.program_id);
-    Ok(())
+impl<'info> InitializeGlobalState<'info> {
+    pub fn handle_init(
+        &mut self,
+        max_stake: u8,
+        points_per_stake: u8,
+        freeze_period: u32,
+        bumps: &InitializeGlobalStateBumps,
+    ) -> Result<()> {
+        self.global_state.set_inner(GlobalState {
+            points_per_stake,
+            max_stake,
+            freeze_period,
+            rewards_bump: bumps.reward_mint,
+            global_bump: bumps.global_state,
+        });
+        Ok(())
+    }
 }
