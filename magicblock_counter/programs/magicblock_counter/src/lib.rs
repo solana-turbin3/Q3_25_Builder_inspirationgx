@@ -33,7 +33,7 @@ pub mod magicblock_counter {
     pub fn delegate(ctx: Context<Delegate>) -> Result<()> {
         ctx.accounts.delegate_counter(
             &ctx.accounts.user,
-            &[COUNTER_SEEDS],
+            &[COUNTER_SEEDS, ctx.accounts.user.key().as_ref()],
             DelegateConfig::default(),
         )?;
 
@@ -54,6 +54,10 @@ pub mod magicblock_counter {
         let counter = &mut ctx.accounts.counter;
 
         counter.count += 1;
+
+        if counter.count > 10_000 {
+            counter.count = 0;
+        }
 
         commit_accounts(
             &ctx.accounts.user,
@@ -78,6 +82,11 @@ pub mod magicblock_counter {
         let counter = &mut ctx.accounts.counter;
 
         counter.count += 1;
+
+        if counter.count > 10_000 {
+            counter.count = 0;
+        }
+
         counter.exit(&ID)?;
         commit_and_undelegate_accounts(
             &ctx.accounts.user,
@@ -98,7 +107,7 @@ pub struct InitializeCounter<'info> {
     #[account(
         init_if_needed,
         payer = user,
-        seeds = [COUNTER_SEEDS],
+        seeds = [COUNTER_SEEDS, user.key().as_ref()],
         bump,
         space = Counter::DISCRIMINATOR.len() + Counter::INIT_SPACE
     )]
@@ -113,7 +122,7 @@ pub struct Increment<'info> {
 
     #[account(
         mut,
-        seeds = [COUNTER_SEEDS],
+        seeds = [COUNTER_SEEDS, user.key().as_ref()],
         bump = counter.bump,
     )]
     pub counter: Account<'info, Counter>,
@@ -127,7 +136,7 @@ pub struct Delegate<'info> {
 
     #[account(
         mut,
-        seeds = [COUNTER_SEEDS],
+        seeds = [COUNTER_SEEDS, user.key().as_ref()],
         bump = counter.bump,
         del
     )]
@@ -142,7 +151,7 @@ pub struct Commit<'info> {
 
     #[account(
         mut,
-        seeds = [COUNTER_SEEDS],
+        seeds = [COUNTER_SEEDS, user.key().as_ref()],
         bump = counter.bump,
     )]
     pub counter: Account<'info, Counter>,
@@ -156,7 +165,7 @@ pub struct IncrementAndCommit<'info> {
 
     #[account(
         mut,
-        seeds = [COUNTER_SEEDS],
+        seeds = [COUNTER_SEEDS, user.key().as_ref()],
         bump = counter.bump,
     )]
     pub counter: Account<'info, Counter>,
