@@ -3,7 +3,7 @@ use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::{commit_accounts, commit_and_undelegate_accounts};
 
-declare_id!("HeUv2NHuF5fpfuMWA2cFeAfcRY6njm421xRVnCUdUTWZ");
+declare_id!("6MmY6WpTFbonokS9BUKdoTNEtUsLjthU1UDaRQAAeWBv");
 const COUNTER_SEEDS: &[u8; 5] = b"COUNT";
 
 #[ephemeral]
