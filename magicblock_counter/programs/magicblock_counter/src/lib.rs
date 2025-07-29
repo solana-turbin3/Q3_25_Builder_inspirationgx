@@ -136,6 +136,20 @@ pub struct Delegate<'info> {
 
 #[commit]
 #[derive(Accounts)]
+pub struct Commit<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [COUNTER_SEEDS],
+        bump = counter.bump,
+    )]
+    pub counter: Account<'info, Counter>,
+}
+
+#[commit]
+#[derive(Accounts)]
 pub struct IncrementAndCommit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
