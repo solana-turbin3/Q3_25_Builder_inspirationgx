@@ -108,10 +108,12 @@ impl<'info> Stake<'info> {
         let cpi_context = CpiContext::new(cpi_program, cpi_account);
         approve(cpi_context, 1)?; // approving delegate to be able to spend 1 token, since it's an nft and supply is 1
 
+        let mint = self.mint.key();
+        let global_state = self.global_state.key();
         let signer_seeds: &[&[&[u8]]] = &[&[
             b"stake",
-            self.mint.to_account_info().key().as_ref(),
-            self.global_state.to_account_info().key().as_ref(),
+            mint.as_ref(),
+            global_state.as_ref(),
             &[self.stake_account.bump],
         ]];
 
@@ -125,7 +127,7 @@ impl<'info> Stake<'info> {
                 token_program: &self.token_program.to_account_info(),
             },
         )
-        .invoke_signed(signers_seeds)?;
+        .invoke_signed(signer_seeds)?;
 
         self.user_state.amount_staked += 1;
 

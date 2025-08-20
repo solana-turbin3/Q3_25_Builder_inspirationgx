@@ -69,7 +69,7 @@ pub struct UnStake<'info> {
 
 impl<'info> UnStake<'info> {
     pub fn unstake_handler(&mut self) -> Result<()> {
-        require(
+        require!(
             self.user_state.amount_staked >= 1,
             StakeProgramError::InsufficientPreviousStakes,
         );
@@ -84,10 +84,12 @@ impl<'info> UnStake<'info> {
 
         self.user_state.points += (self.global_state.points_per_stake as u32) * time_elapsed;
 
+        let mint = self.mint.key();
+        let global_state = self.global_state.key();
         let signer_seeds: &[&[&[u8]]] = &[&[
             b"stake",
-            self.mint.to_account_info().key().as_ref(),
-            self.global_state.to_account_info().key().as_ref(),
+            mint.as_ref(),
+            global_state.as_ref(),
             &[self.stake_account.bump],
         ]];
 
