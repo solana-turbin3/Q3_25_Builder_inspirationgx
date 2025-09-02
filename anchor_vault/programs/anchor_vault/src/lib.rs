@@ -1,7 +1,10 @@
 use anchor_lang::prelude::*;
 
 use anchor_lang::system_program::{transfer, Transfer};
-declare_id!("Bw5DfdLdTT6JSzmM3E3YNu7NJ9gGNdRiCmiz4GukhxVY");
+use anchor_spl::associated_token::AssociatedToken;
+
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked, transfer_checked};
+declare_id!("2DFk2oyDSY6dh8cCmnQQ7iayybUuotLwLetoCHqE5dot");
 
 #[program]
 pub mod anchor_vault {
@@ -22,6 +25,16 @@ pub mod anchor_vault {
         ctx.accounts.withdraw(amount, &ctx.bumps)?;
         Ok(())
     }
+
+    pub fn deposit_spl(ctx: Context<Payment>, amount: u64) -> Result<()> {
+        ctx.accounts.deposit_spl(amount)?;
+        Ok(())
+    }
+
+    pub fn withdraw_spl(ctx: Context<Payment>, amount: u64) -> Result<()> {
+        ctx.accounts.withdraw_spl(amount, &ctx.bumps)?;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -30,36 +43,60 @@ pub struct Initialize<'info> {
     pub payer: Signer<'info>,
 
     #[account(
-        init, payer = payer,
-        space = 8 + VaultState::INIT_SPACE,
+        init, 
+        payer = payer,
+        space = VaultState::DISCRIMINATOR.len() + VaultState::INIT_SPACE,
         seeds = [b"vault_state", payer.key().as_ref()],
-        bump)]
+        bump
+    )]
     pub vault_state: Account<'info, VaultState>,
 
     #[account(
-        init,
-        payer= payer,
+        mut,
         seeds=[b"vault"],
         bump,
-        space = 0,
         owner = system_program.key()
-        )]
-    /// CHECK: System Program Account
-    pub vault: AccountInfo<'info>,
+    )]
+    pub vault: SystemAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 pub struct Payment<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    // Account for Holding SOL
     #[account(mut, seeds=[b"vault"], bump)]
     pub vault: SystemAccount<'info>,
 
     #[account(seeds = [b"vault_state", payer.key().as_ref()], bump)]
     pub vault_state: Account<'info, VaultState>,
 
-    #[account(mut)]
-    pub payer: Signer<'info>,
+    pub token_mint: Option<InterfaceAccount<'info, Mint>>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        constraint = user_ata.mint == token_mint.as_ref().expect("Provide token mint").key() @ProgramError::InvalidMint,
+        associated_token::mint = token_mint,
+        associated_token::authority = payer
+    )]
+    pub user_ata: Option<InterfaceAccount<'info, TokenAccount>>,
+
+     // Account for Holding Spl Tokens
+    #[account(
+        init_if_needed,
+        payer = payer,
+        constraint = vault_ata.mint == token_mint.as_ref().expect("Provide token mint").key() @ProgramError::InvalidMint,
+        associated_token::mint = token_mint,
+        associated_token::authority = vault_state
+    )]
+    pub vault_ata: Option<InterfaceAccount<'info, TokenAccount>>,
+
     pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 impl<'info> Payment<'info> {
@@ -76,6 +113,29 @@ impl<'info> Payment<'info> {
         let cpi = CpiContext::new(self.system_program.to_account_info(), accounts);
 
         transfer(cpi, amount)?;
+
+        Ok(())
+    }
+
+    fn deposit_spl(&mut self, amount: u64) -> Result<()> {
+
+        let token_program = self.token_program.to_account_info();
+        let sender_ata = self.user_ata.as_ref().expect("provide a sender token account").to_account_info();
+        let vault_ata = self.vault_ata.as_ref().expect("provide the vault token account").to_account_info();
+        let token_mint = self.token_mint.as_ref().expect("You should provide token mint").to_account_info();
+
+        require!(self.user_ata.as_ref().map(|e| e.amount) >= Some(amount), ProgramError::InsufficientBalance);
+
+        let deposit_accounts = TransferChecked {
+            authority: self.payer.to_account_info(),
+            from: sender_ata,
+            to: vault_ata,
+            mint: token_mint
+        };
+
+        let transfer_cpi = CpiContext::new(token_program, deposit_accounts);
+
+        transfer_checked(transfer_cpi, amount, self.token_mint.as_ref().expect("You should provide token mint").decimals)?;
 
         Ok(())
     }
@@ -98,6 +158,40 @@ impl<'info> Payment<'info> {
         transfer(cpi, amount)?;
         Ok(())
     }
+
+    fn withdraw_spl(&mut self, amount: u64, bumps: &PaymentBumps) -> Result<()> {
+
+        let token_program = self.token_program.to_account_info();
+        let owner_ata = self.user_ata.as_ref().expect("provide a sender token account").to_account_info();
+        let vault_ata = self.vault_ata.as_ref().expect("provide the vault token account").to_account_info();
+        let token_mint = self.token_mint.as_ref().expect("You should provide token mint").to_account_info();
+
+        let wallet_balance = self.vault_ata.as_ref().map(|e| e.amount);
+
+
+        require!(wallet_balance.unwrap() >= amount, ProgramError::InsufficientBalance);
+
+        let deposit_accounts = TransferChecked {
+            authority: self.vault_state.to_account_info(),
+            from: vault_ata,
+            to: owner_ata,
+            mint: token_mint
+        };
+
+        let payer = self.payer.key();
+
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"vault_state",
+            payer.as_ref(),
+            &[bumps.vault_state]
+        ]];
+
+        let transfer_cpi = CpiContext::new_with_signer(token_program, deposit_accounts, signer_seeds);
+
+        transfer_checked(transfer_cpi, amount, self.token_mint.as_ref().expect("You should provide token mint").decimals)?;
+
+        Ok(())
+    }
 }
 
 impl<'info> Initialize<'info> {
@@ -118,4 +212,12 @@ pub struct VaultState {
     pub is_initialized: bool,
     pub vault_state_bump: u8,
     pub vault_bump: u8,
+}
+
+#[error_code]
+pub enum ProgramError {
+    #[msg("You provided wrong token mint for this token")]
+    InvalidMint,
+    #[msg("You tried to withdraw more than available in balance")]
+    InsufficientBalance,
 }
