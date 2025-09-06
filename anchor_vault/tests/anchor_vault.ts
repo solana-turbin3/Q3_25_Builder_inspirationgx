@@ -4,7 +4,7 @@ import { AnchorVault } from "../target/types/anchor_vault";
 import wallet_1_file from "./wallets/user-1-wallet.json";
 import wallet_2_file from "./wallets/user-2-wallet.json";
 import { TOKEN_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
-import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+// import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 
 const wallet_1 = anchor.web3.Keypair.fromSecretKey(

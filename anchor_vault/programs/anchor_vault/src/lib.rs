@@ -16,8 +16,9 @@ pub mod anchor_vault {
         Ok(())
     }
 
+
     pub fn deposit(ctx: Context<Payment>, amount: u64) -> Result<()> {
-        ctx.accounts.deposit(amount)?;
+        ctx.accounts.deposit(amount, &ctx.bumps)?;
         Ok(())
     }
 
@@ -67,10 +68,20 @@ pub struct Payment<'info> {
     pub payer: Signer<'info>,
 
     // Account for Holding SOL
-    #[account(mut, seeds=[b"vault"], bump)]
+    #[account(
+        mut,
+        seeds=[b"vault"],
+        bump
+    )]
     pub vault: SystemAccount<'info>,
 
-    #[account(seeds = [b"vault_state", payer.key().as_ref()], bump)]
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = VaultState::DISCRIMINATOR.len() + VaultState::INIT_SPACE,
+        seeds = [b"vault_state", payer.key().as_ref()],
+        bump
+    )]
     pub vault_state: Account<'info, VaultState>,
 
     pub token_mint: Option<InterfaceAccount<'info, Mint>>,
@@ -100,7 +111,7 @@ pub struct Payment<'info> {
 }
 
 impl<'info> Payment<'info> {
-    fn deposit(&mut self, amount: u64) -> Result<()> {
+    fn deposit(&mut self, amount: u64, bumps: &PaymentBumps) -> Result<()> {
         assert!(
             self.payer.to_account_info().lamports() > amount,
             "Insufficient Funds to transfer"
@@ -109,6 +120,11 @@ impl<'info> Payment<'info> {
             to: self.vault.to_account_info(),
             from: self.payer.to_account_info(),
         };
+
+        // action if vault does not already exists
+        if !self.vault_state.is_initialized {
+            self.vault_state.set_inner(VaultState { owner: self.payer.key(), is_initialized: true, vault_state_bump: bumps.vault_state, vault_bump: bumps.vault });
+        }
 
         let cpi = CpiContext::new(self.system_program.to_account_info(), accounts);
 
